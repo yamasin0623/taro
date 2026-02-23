@@ -2,21 +2,28 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>野菜直売所 - クラウド同期版</title>
 <style>
-  body { font-family: sans-serif; padding: 20px; background: #f4f7f6; }
-  #adminBtn { position: absolute; top: 10px; right: 10px; padding: 8px 16px; cursor: pointer; }
-  .item { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; background: white; border-radius: 8px; }
-  .item img { width: 100px; height: 100px; object-fit: cover; margin-right: 20px; }
+  body { font-family: sans-serif; padding: 20px; background: #f4f7f6; max-width: 800px; margin: 0 auto; }
+  #adminBtn { position: absolute; top: 10px; right: 10px; padding: 8px 16px; cursor: pointer; background: #95a5a6; color: white; border: none; border-radius: 4px; }
+  .item { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+  .item img { width: 100px; height: 100px; object-fit: cover; margin-right: 20px; border-radius: 4px; }
   .info { flex: 1; }
-  .veg-name { font-size: 20px; font-weight: bold; }
-  .price { font-size: 18px; color: #e67e22; }
-  .qty { width: 60px; padding: 5px; font-size: 16px; }
-  #total { font-size: 24px; margin-top: 20px; font-weight: bold; }
-  #orderBtn { margin-top: 20px; padding: 12px 30px; background: #27ae60; color: white; border: none; cursor: pointer; border-radius: 5px; }
+  .veg-name { font-size: 20px; font-weight: bold; margin: 0; }
+  .price { font-size: 18px; color: #e67e22; font-weight: bold; }
+  .stock { color: #666; font-size: 14px; margin-top: 4px; }
+  .qty { width: 60px; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+  #total { font-size: 24px; margin-top: 20px; font-weight: bold; color: #2c3e50; text-align: right; }
+  #orderBtn { display: block; width: 100%; margin-top: 20px; padding: 15px; font-size: 20px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+  #nameBox { width: 100%; box-sizing: border-box; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+
+  /* 管理者パネル */
   #adminPanel { display:none; border:2px solid #34495e; padding:20px; margin-top:20px; background:#ecf0f1; border-radius: 8px; }
-  .drop-area { width: 100%; height: 60px; border: 2px dashed #ccc; display: flex; align-items: center; justify-content: center; background: #fff; cursor: pointer; margin: 10px 0; }
-  .preview { width: 80px; height: 60px; object-fit: cover; display: none; margin-top: 5px; }
+  .admin-section { background: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+  .drop-area { width: 100%; height: 80px; border: 2px dashed #bdc3c7; display: flex; align-items: center; justify-content: center; margin: 10px 0; background: #fff; cursor: pointer; font-size: 14px; }
+  .preview { width: 100px; height: 80px; object-fit: cover; display: none; margin: 10px 0; border: 1px solid #ddd; }
+  .edit-item { border-bottom: 1px solid #ddd; padding: 10px 0; }
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/9.1.0/firebase-app-compat.js"></script>
@@ -24,34 +31,37 @@
 </head>
 <body>
 
-<h1>野菜直売所</h1>
-<button id="adminBtn">管理者メニュー</button>
+<h1>🥬 野菜直売所</h1>
+<button id="adminBtn">管理者</button>
 
 <div id="userInterface">
-  <label>お客様名：<input type="text" id="nameBox" placeholder="名前を入力"></label>
-  <div id="items">読み込み中...</div>
+  <input type="text" id="nameBox" placeholder="お客様のお名前を入力してください">
+  <div id="items">データを読み込んでいます...</div>
   <div id="total">合計：0円</div>
-  <button id="orderBtn">発注を確定する</button>
+  <button id="orderBtn">注文を確定する</button>
 </div>
 
 <div id="adminPanel">
-  <h2>管理者用：商品管理</h2>
-  <div style="background: #fff; padding: 15px; margin-bottom: 20px;">
-    <h3>新規追加</h3>
-    名前：<input type="text" id="newName"><br>
-    価格：<input type="number" id="newPrice" style="width:80px">円<br>
-    在庫：<input type="number" id="newStock" style="width:60px">個
-    <div class="drop-area" id="dropNew">ここに画像をドロップ</div>
+  <h2>管理者メニュー</h2>
+  <div class="admin-section">
+    <h3>新しい商品を追加</h3>
+    名前：<input type="text" id="newName" placeholder="例：トマト"><br><br>
+    価格：<input type="number" id="newPrice" style="width:80px"> 円<br><br>
+    在庫：<input type="number" id="newStock" style="width:60px"> 個
+    <div class="drop-area" id="dropNew">ここに写真をドロップ</div>
     <img id="previewNew" class="preview">
-    <button id="addBtn" style="background:#3498db; color:white; border:none; padding:10px;">追加</button>
+    <button id="addBtn" style="padding: 10px 20px; background: #3498db; color:white; border:none; border-radius:4px; cursor:pointer;">リストに追加する</button>
   </div>
-  <h3>登録済みリスト</h3>
-  <div id="editList"></div>
-  <button id="closeAdminBtn">閉じる</button>
+
+  <div class="admin-section">
+    <h3>登録済み商品の管理</h3>
+    <div id="editList"></div>
+  </div>
+  <button id="closeAdminBtn" style="padding: 10px; width: 100%;">管理画面を閉じる</button>
 </div>
 
 <script>
-  // --- 1. あなた専用のFirebase設定（image_803b3c.pngから転記） ---
+  // --- 1. Firebaseの設定（修正済み） ---
   const firebaseConfig = {
     apiKey: "AIzaSyCDdgxGhJLHApAmjwFnwQ9r3VwACr2nKY",
     authDomain: "taroyasaishop.firebaseapp.com",
@@ -63,52 +73,87 @@
     measurementId: "G-P953B34PT0"
   };
 
-  // Firebase初期化
+  // 初期化
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
   let vegetables = [];
+  let newImageBase64 = "";
 
-  // リアルタイム同期（データベースを見張る）
+  // データのリアルタイム受信
   db.ref("vegetables").on("value", (snapshot) => {
     const data = snapshot.val();
     vegetables = data || [];
     renderAll();
   });
 
+  // データの保存
   function saveData() {
     db.ref("vegetables").set(vegetables);
   }
 
-  /* --- 画面表示ロジック --- */
+  /* --- メイン画面表示 --- */
   function renderAll() {
     const itemsDiv = document.getElementById("items");
     itemsDiv.innerHTML = "";
+    if (vegetables.length === 0) itemsDiv.innerHTML = "<p>現在、販売中の野菜はありません。</p>";
+
     vegetables.forEach((veg, index) => {
       itemsDiv.innerHTML += `
         <div class="item">
           <img src="${veg.image}">
           <div class="info">
-            <div class="veg-name">${veg.name}</div>
-            <div class="price">${veg.price}円</div>
-            <div class="stock">在庫：${veg.stock}個</div>
+            <p class="veg-name">${veg.name}</p>
+            <p class="price">${veg.price}円</p>
+            <p class="stock">残り：<span id="st-${index}">${veg.stock}</span>個</p>
             <input type="number" min="0" max="${veg.stock}" value="0" data-index="${index}" class="qty"> 個
           </div>
         </div>
       `;
     });
-    document.querySelectorAll(".qty").forEach(input => input.addEventListener("input", calculateTotal));
+
+    document.querySelectorAll(".qty").forEach(input => {
+      input.addEventListener("input", calculateTotal);
+    });
     renderAdminList();
   }
 
   function calculateTotal() {
     let total = 0;
     document.querySelectorAll(".qty").forEach(input => {
-      const index = input.dataset.index;
-      total += vegetables[index].price * Number(input.value);
+      const idx = input.dataset.index;
+      const count = Number(input.value);
+      total += vegetables[idx].price * count;
+      document.getElementById(`st-${idx}`).textContent = vegetables[idx].stock - count;
     });
     document.getElementById("total").textContent = `合計：${total}円`;
   }
+
+  /* --- 注文確定 --- */
+  document.getElementById("orderBtn").addEventListener("click", () => {
+    const name = document.getElementById("nameBox").value;
+    if (!name) return alert("お名前を入力してください");
+
+    let hasOrder = false;
+    document.querySelectorAll(".qty").forEach(input => {
+      const idx = input.dataset.index;
+      const count = Number(input.value);
+      if (count > 0) {
+        vegetables[idx].stock -= count;
+        hasOrder = true;
+      }
+    });
+
+    if (!hasOrder) return alert("商品を選んでください");
+
+    if (confirm(name + "様、注文を確定しますか？")) {
+      saveData();
+      document.getElementById("nameBox").value = "";
+      alert("ありがとうございます！注文を承りました。");
+    } else {
+      renderAll();
+    }
+  });
 
   /* --- 管理者機能 --- */
   document.getElementById("adminBtn").addEventListener("click", () => {
@@ -116,6 +161,41 @@
       document.getElementById("adminPanel").style.display = "block";
     }
   });
+  document.getElementById("closeAdminBtn").addEventListener("click", () => {
+    document.getElementById("adminPanel").style.display = "none";
+  });
+
+  // 画像処理
+  function setupImageHandler(area, preview, callback) {
+    area.addEventListener("dragover", e => { e.preventDefault(); area.style.background = "#e0f7ff"; });
+    area.addEventListener("dragleave", () => { area.style.background = "#fff"; });
+    area.addEventListener("drop", e => {
+      e.preventDefault();
+      area.style.background = "#fff";
+      const file = e.dataTransfer.files[0];
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const max = 400;
+          let w = img.width, h = img.height;
+          if (w > h) { if (w > max) { h *= max/w; w = max; } }
+          else { if (h > max) { w *= max/h; h = max; } }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          const base64 = canvas.toDataURL('image/jpeg', 0.6);
+          preview.src = base64;
+          preview.style.display = "block";
+          callback(base64);
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  setupImageHandler(document.getElementById("dropNew"), document.getElementById("previewNew"), (b64) => { newImageBase64 = b64; });
 
   document.getElementById("addBtn").addEventListener("click", () => {
     const name = document.getElementById("newName").value;
@@ -124,11 +204,34 @@
     if (!name || !newImageBase64) return alert("名前と画像は必須です");
     vegetables.push({ name, price, stock, image: newImageBase64 });
     saveData();
+    document.getElementById("newName").value = "";
+    document.getElementById("newPrice").value = "";
+    document.getElementById("newStock").value = "";
+    document.getElementById("previewNew").style.display = "none";
+    newImageBase64 = "";
     alert("追加しました！");
   });
 
-  // （※リサイズ処理や削除処理など以前の機能をすべて含んでいます）
-  // 以前の setupDropArea などの共通関数はここに継続されます
+  function renderAdminList() {
+    const list = document.getElementById("editList");
+    list.innerHTML = "";
+    vegetables.forEach((veg, i) => {
+      const d = document.createElement("div");
+      d.className = "edit-item";
+      d.innerHTML = `
+        ${veg.name} (${veg.price}円) 
+        <button onclick="deleteVeg(${i})" style="color:red; float:right;">削除</button>
+      `;
+      list.appendChild(d);
+    });
+  }
+
+  window.deleteVeg = (i) => {
+    if (confirm("本当に削除しますか？")) {
+      vegetables.splice(i, 1);
+      saveData();
+    }
+  };
 </script>
 </body>
 </html>
