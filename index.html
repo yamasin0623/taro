@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>丹波太郎野菜販売 - フル機能版</title>
+<title>丹波太郎野菜販売 - LINE強化版</title>
 <style>
   /* 基本デザイン */
   body { font-family: sans-serif; margin: 0; padding: 0; background: #f4f7f6; color: #333; padding-bottom: 140px; }
@@ -19,16 +19,13 @@
   .item { border: none; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: relative; }
   .item img { width: 80px; height: 80px; object-fit: cover; margin-right: 15px; border-radius: 8px; background: #eee; }
   .info { flex: 1; }
-  
-  /* 名前とラベル */
   .veg-name { font-size: 1.1rem; font-weight: bold; margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
   .pesticide-label { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; font-weight: normal; }
   .date-label { font-size: 0.7rem; color: #888; font-weight: normal; }
-
   .price { font-size: 1rem; color: #e67e22; font-weight: bold; margin: 5px 0; }
   .stock-info { font-size: 0.9rem; color: #666; margin-bottom: 8px; }
   
-  /* 生産者タグ（右側） */
+  /* 生産者タグ */
   .producer-tag { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); text-align: right; color: #555; font-size: 0.8rem; border-left: 1px solid #eee; padding-left: 10px; min-width: 70px; }
   .tag-label { font-size: 0.6rem; color: #999; display: block; }
 
@@ -47,15 +44,8 @@
   .panel-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #27ae60; padding-bottom: 10px; margin-bottom: 20px; }
   .admin-card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
   
-  .btn-edit { background: #f39c12; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; }
-  .btn-delete { background: #e74c3c; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
-
-  @media print {
-    body * { visibility: hidden; }
-    #realtimeOrderList, #realtimeOrderList * { visibility: visible; }
-    #realtimeOrderList { position: absolute; left: 0; top: 0; width: 100%; }
-    .admin-card { border: 1px solid #000; box-shadow: none; }
-  }
+  /* 📝 コメント入力欄のスタイル */
+  #lineComment { width: 100%; height: 80px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 1rem; margin-bottom: 10px; resize: none; }
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/9.1.0/firebase-app-compat.js"></script>
@@ -102,7 +92,10 @@
   </div>
 
   <div class="admin-card" style="background: #e8f5e9; border: 1px solid #27ae60;">
-    <p style="margin:0 0 10px 0; font-size: 0.85rem; color: #2e7d32; font-weight: bold;">📢 本日の在庫状況を自分のLINEに通知する</p>
+    <p style="margin:0 0 10px 0; font-size: 0.85rem; color: #2e7d32; font-weight: bold;">📢 本日の在庫状況をLINEに通知する</p>
+    
+    <textarea id="lineComment" placeholder="「今日のおすすめ」や「おまけ情報」など自由に書いてください（空欄でもOK）"></textarea>
+    
     <button id="sendLineBtn" style="width:100%; padding:12px; background:#06c755; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">LINEに送信</button>
   </div>
 
@@ -110,7 +103,6 @@
     <h3>➕ 新しい商品を追加</h3>
     野菜の名前：<input type="text" id="newName"><br><br>
     価格：<input type="number" id="newPrice" min="0" style="width:80px"> 円 / 在庫：<input type="number" id="newStock" min="0" style="width:60px"> 個<br><br>
-    
     生産者：<input type="text" id="newProducer" list="producerSuggestions" placeholder="一文字で候補表示">
     栽培：<select id="newPesticide">
       <option value="">なし</option>
@@ -118,8 +110,7 @@
       <option value="無農薬">無農薬</option>
     </select>
     <datalist id="producerSuggestions"></datalist>
-    
-    <div id="dropNew" style="width:100%; height:60px; border:2px dashed #ccc; display:flex; align-items:center; justify-content:center; background:#fff; margin:10px 0; font-size:0.8rem; color:#999; cursor:pointer;">ここに写真をドロップ（なしでもOK）</div>
+    <div id="dropNew" style="width:100%; height:60px; border:2px dashed #ccc; display:flex; align-items:center; justify-content:center; background:#fff; margin:10px 0; font-size:0.8rem; color:#999; cursor:pointer;">ここに写真をドロップ</div>
     <img id="previewNew" style="width:60px; height:60px; object-fit:cover; display:none; margin-bottom:10px;">
     <button id="addBtn" style="width:100%; padding:12px; background:#3498db; color:white; border:none; border-radius:4px; font-weight:bold;">この内容で登録</button>
   </div>
@@ -139,8 +130,8 @@
 </div>
 
 <script>
-  // 🚩 設定：GASのURLをここに貼り付けてください
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbxOlv8evSBZyJlWKiFuRU7aR-pfUNytOiofYKI3jdMvGmFgNQRPlC5HB-Vpgrc9cgWY/exec";
+  // 🚩 設定：成功したGASのURLをここに貼り付けてください
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbztc3rzDBQOabDmx6YfaCkkk-OBMDgfV2_v5o9VYyUbiRTbVZDqaD0sF_zSxnuZuf_i/exec";
 
   // Firebase初期設定
   const firebaseConfig = {
@@ -174,22 +165,16 @@
       <div class="admin-card">
         <div style="font-size:0.7rem; color:#888;">${o.time}</div>
         <strong>${o.name} 様</strong><br>
-        <small style="line-height:1.4;">${o.items.replace(/, /g, '<br>')}</small>
-        <div style="text-align:right; font-weight:bold; color:#e67e22; border-top:1px solid #eee; padding-top:5px; margin-top:5px;">合計 ${o.total}円</div>
+        <small>${o.items}</small>
+        <div style="text-align:right; font-weight:bold; color:#e67e22; border-top:1px solid #eee;">合計 ${o.total}円</div>
       </div>
     `).join("");
   });
-  db.ref("producers").on("value", snap => { 
-    const data = snap.val() || [];
-    producers = data.sort((a, b) => a.localeCompare(b, 'ja')); // あいうえお順整列
-    updateProducerUI(); 
-  });
+  db.ref("producers").on("value", snap => { producers = snap.val() || []; updateProducerUI(); });
 
   function updateProducerUI() {
-    const datalist = document.getElementById("producerSuggestions");
-    datalist.innerHTML = producers.map(p => `<option value="${p}">`).join("");
-    const listDiv = document.getElementById("producerListDisplay");
-    listDiv.innerHTML = producers.map((p, i) => `
+    document.getElementById("producerSuggestions").innerHTML = producers.map(p => `<option value="${p}">`).join("");
+    document.getElementById("producerListDisplay").innerHTML = producers.map((p, i) => `
       <div class="admin-card" style="display:flex; justify-content:space-between; align-items:center;">
         <span>${p}</span>
         <button onclick="deleteProducer(${i})" class="btn-delete">削除</button>
@@ -197,189 +182,150 @@
     `).join("");
   }
 
-  /* --- 📢 LINE通知送信処理 --- */
+  /* --- 📢 LINE通知送信処理（コメント・URL付き） --- */
   document.getElementById("sendLineBtn").onclick = () => {
     if (vegetables.length === 0) return alert("商品がありません");
+
+    // 入力されたコメントを取得
+    const comment = document.getElementById("lineComment").value;
+    // 現在のホームページのアドレスを自動取得
+    const homePageUrl = window.location.href.split('?')[0].split('#')[0];
+
     let msg = "🥬 本日の丹波太郎野菜 在庫状況\n\n";
+    
+    // コメントがあれば追加
+    if (comment) {
+      msg += `【店主より】\n${comment}\n\n`;
+    }
+
+    msg += "--- 現在の在庫 ---\n";
     vegetables.forEach(v => {
       if(v.stock > 0) {
         msg += `・${v.name}${v.pesticide ? '['+v.pesticide+']':''}：${v.price}円 (${v.stock}個)\n`;
       }
     });
-    msg += "\n宜しくお願いします！";
+
+    // 最後にホームページのURLを追記
+    msg += `\n🛒 ご注文はこちらから：\n${homePageUrl}\n\n宜しくお願いします！`;
 
     if(!confirm("LINEに通知しますか？\n\n" + msg)) return;
 
     fetch(GAS_URL, {
       method: "POST",
-      mode: "no-cors", // 🥕 これを追加することで「Failed to fetch」を防ぎます
-      headers: {
-        "Content-Type": "application/json"
-      },
+      mode: "no-cors", 
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: msg })
     })
-    .then(() => alert("送信しました！"))
+    .then(() => {
+      alert("送信リクエストを送信しました！");
+      document.getElementById("lineComment").value = ""; // 送信後にコメント欄を空にする
+    })
     .catch(err => alert("エラー: " + err));
   };
 
-  /* --- パネル制御 & パスワード --- */
+  /* --- パネル制御 --- */
   const checkPass = () => {
     const i = prompt("パスワードを入力してください");
     if (i === PASS) return true;
     if (i !== null) alert("パスワードが違います");
     return false;
   };
-
-  document.getElementById("btnProducerReg").onclick = () => { 
-    if(checkPass()) {
-        document.getElementById("producerPanel").style.display="block";
-        setTimeout(() => { document.getElementById("regProducerName").focus(); }, 100); // 自動フォーカス
-    }
-  };
+  document.getElementById("btnProducerReg").onclick = () => { if(checkPass()) document.getElementById("producerPanel").style.display="block"; };
   document.getElementById("btnConfig").onclick = () => { if(checkPass()) document.getElementById("configPanel").style.display="block"; };
   document.getElementById("btnOrders").onclick = () => { if(checkPass()) document.getElementById("orderPanel").style.display="block"; };
   window.closePanel = (id) => document.getElementById(id).style.display = "none";
 
-  /* --- 生産者登録 --- */
+  /* --- 商品・生産者管理 --- */
   document.getElementById("addProducerBtn").onclick = () => {
-    const inputField = document.getElementById("regProducerName");
-    const name = inputField.value.trim();
+    const name = document.getElementById("regProducerName").value.trim();
     if (!name || producers.includes(name)) return;
-    producers.push(name);
-    producers.sort((a, b) => a.localeCompare(b, 'ja'));
-    db.ref("producers").set(producers).then(() => {
-        inputField.value = "";
-        inputField.focus(); // 登録後もフォーカス維持
-    });
+    producers.push(name); db.ref("producers").set(producers);
+    document.getElementById("regProducerName").value = "";
   };
   window.deleteProducer = (i) => { if (confirm("削除しますか？")) { producers.splice(i, 1); db.ref("producers").set(producers); } };
 
-  /* --- 商品登録 --- */
   document.getElementById("addBtn").onclick = () => {
     const name = document.getElementById("newName").value;
     const pVal = document.getElementById("newPrice").value;
     const sVal = document.getElementById("newStock").value;
-    const producer = document.getElementById("newProducer").value;
-    const pesticide = document.getElementById("newPesticide").value;
-    const today = new Date().toLocaleDateString("ja-JP"); // 本日の日付
-
-    if (!name || Number(pVal) < 0 || Number(sVal) < 0 || pVal.includes("-") || sVal.includes("-")) return alert("入力ミスです（マイナス不可）");
-
-    vegetables.push({ name, price: Number(pVal), stock: Number(sVal), producer, pesticide, date: today, image: newImageBase64 || DEFAULT_IMG });
+    const today = new Date().toLocaleDateString("ja-JP");
+    if (!name) return alert("名前を入力してください");
+    vegetables.push({ 
+      name, price: Number(pVal), stock: Number(sVal), 
+      producer: document.getElementById("newProducer").value,
+      pesticide: document.getElementById("newPesticide").value,
+      date: today, image: newImageBase64 || DEFAULT_IMG 
+    });
     db.ref("vegetables").set(vegetables).then(() => {
       alert("登録しました");
       document.getElementById("newName").value = ""; document.getElementById("newPrice").value = "";
-      document.getElementById("newStock").value = ""; document.getElementById("newProducer").value = "";
-      document.getElementById("newPesticide").value = "";
-      newImageBase64 = ""; document.getElementById("previewNew").style.display="none";
+      document.getElementById("newStock").value = ""; newImageBase64 = "";
     });
   };
 
-  /* --- 販売画面表示 --- */
   function renderItems() {
     const div = document.getElementById("items");
     div.innerHTML = vegetables.map((v, i) => {
       const q = currentQuantities[i] || 0;
-      const pesticideTag = v.pesticide ? `<span class="pesticide-label">${v.pesticide}</span>` : '';
-      const dateTag = v.date ? `<span class="date-label">(${v.date})</span>` : '';
-      const producerSection = v.producer ? `
-        <div class="producer-tag">
-          <span class="tag-label">生産者</span>
-          <strong>${v.producer}</strong>
-        </div>` : '';
-
       return `
       <div class="item">
         <img src="${v.image}">
         <div class="info">
-          <p class="veg-name">${v.name} ${pesticideTag} ${dateTag}</p>
+          <p class="veg-name">${v.name} ${v.pesticide ? `<span class="pesticide-label">${v.pesticide}</span>` : ''}</p>
           <p class="price">${v.price}円</p>
-          <div class="stock-info">残り：<span class="remaining-num">${v.stock - q}</span>個</div>
+          <div class="stock-info">残り：${v.stock - q}個</div>
           <div class="qty-control">
             <div class="btn-qty" onclick="changeQty(${i}, -1)">－</div>
             <div class="qty-display">${q}</div>
             <div class="btn-qty" onclick="changeQty(${i}, 1)">＋</div>
           </div>
         </div>
-        ${producerSection}
+        ${v.producer ? `<div class="producer-tag"><span class="tag-label">生産者</span><strong>${v.producer}</strong></div>` : ''}
       </div>
     `}).join("");
     calcTotal();
   }
 
-  /* --- 管理画面表示 --- */
   function renderAdminItems() {
     document.getElementById("editList").innerHTML = vegetables.map((v, i) => `
       <div class="admin-card" style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <strong>${v.name}</strong> ${v.pesticide ? '['+v.pesticide+']' : ''} ${v.price}円 (${v.stock}個)<br>
-          <small>生産者: ${v.producer || '（未入力）'} / 登録日: ${v.date || 'なし'}</small>
-        </div>
-        <div>
-          <button onclick="editVeg(${i})" class="btn-edit">修正</button>
-          <button onclick="deleteVeg(${i})" class="btn-delete">削除</button>
-        </div>
+        <div><strong>${v.name}</strong> ${v.price}円 (${v.stock}個)</div>
+        <button onclick="deleteVeg(${i})" class="btn-delete">削除</button>
       </div>
     `).join("");
   }
 
-  window.editVeg = (i) => {
-    const v = vegetables[i];
-    const n = prompt("野菜の名前", v.name); if(n===null) return;
-    const p = prompt("価格", v.price); if(p===null) return;
-    const s = prompt("在庫", v.stock); if(s===null) return;
-    const pr = prompt("生産者", v.producer); if(pr===null) return;
-    const pest = prompt("栽培区分（減農薬、無農薬、または空欄）", v.pesticide || ""); if(pest===null) return;
-    const dt = prompt("入力日 (YYYY/MM/DD)", v.date || ""); if(dt===null) return;
-    if(Number(p)<0 || Number(s)<0) return alert("マイナスは入力できません");
-    vegetables[i] = {...v, name: n, price: Number(p), stock: Number(s), producer: pr, pesticide: pest, date: dt};
-    db.ref("vegetables").set(vegetables);
-  };
-
-  /* --- 注文処理ロジック --- */
   window.changeQty = (i, d) => {
     let n = (currentQuantities[i] || 0) + d;
     if(n < 0) n = 0; if(n > vegetables[i].stock) n = vegetables[i].stock;
     currentQuantities[i] = n; renderItems();
   };
-
   function calcTotal() {
     let s = 0; vegetables.forEach((v, i) => s += v.price * (currentQuantities[i] || 0));
     document.getElementById("total").innerText = `合計：${s}円`;
   }
-
   document.getElementById("orderBtn").onclick = () => {
     const u = document.getElementById("nameBox").value; if(!u) return alert("お名前を入力してください");
     let c = []; let t = 0;
     vegetables.forEach((v, i) => {
       const q = currentQuantities[i] || 0;
-      if(q > 0) {
-        v.stock -= q;
-        const pInfo = v.producer ? ` 【${v.producer}】` : '';
-        const pestInfo = v.pesticide ? ` [${v.pesticide}]` : '';
-        c.push(`${v.name}${pestInfo}（${v.price}円）× ${q}${pInfo}`); 
-        t += v.price * q;
-      }
+      if(q > 0) { v.stock -= q; c.push(`${v.name}×${q}`); t += v.price * q; }
     });
     if(c.length === 0) return alert("商品が選ばれていません");
-    if(confirm("注文を確定しますか？")) {
-      db.ref("orders").push({ name: u, items: c.join(", "), total: t, time: new Date().toLocaleString("ja-JP") });
-      db.ref("vegetables").set(vegetables);
-      alert("ありがとうございます！承りました。"); document.getElementById("nameBox").value = ""; currentQuantities = {}; renderItems();
-    }
+    db.ref("orders").push({ name: u, items: c.join(", "), total: t, time: new Date().toLocaleString("ja-JP") });
+    db.ref("vegetables").set(vegetables);
+    alert("注文完了！"); document.getElementById("nameBox").value = ""; currentQuantities = {}; renderItems();
   };
-
   window.deleteVeg = (i) => { if(confirm("消去しますか？")) { vegetables.splice(i,1); db.ref("vegetables").set(vegetables); }};
-  document.getElementById("clearBtn").onclick = () => { if(confirm("全ての注文履歴をクリアしますか？")) db.ref("orders").remove(); };
+  document.getElementById("clearBtn").onclick = () => { if(confirm("履歴を消去？")) db.ref("orders").remove(); };
   document.getElementById("printBtn").onclick = () => { window.print(); };
 
-  /* --- 🖼️ 画像ドロップ機能 --- */
+  /* --- 画像ドロップ --- */
   const dArea = document.getElementById("dropNew");
   dArea.ondragover = e => { e.preventDefault(); dArea.style.background = "#e1f5fe"; };
-  dArea.ondragleave = () => { dArea.style.background = "#fff"; };
   dArea.ondrop = e => {
     e.preventDefault(); dArea.style.background = "#fff";
-    const file = e.dataTransfer.files[0]; if(!file) return;
+    const file = e.dataTransfer.files[0];
     const reader = new FileReader();
     reader.onload = ev => {
       const img = new Image();
@@ -389,8 +335,8 @@
         if(w>h){ if(w>max){ h*=max/w; w=max; } } else { if(h>max){ w*=max/h; h=max; } }
         cvs.width=w; cvs.height=h; cvs.getContext("2d").drawImage(img,0,0,w,h);
         newImageBase64 = cvs.toDataURL("image/jpeg", 0.7);
-        const p = document.getElementById("previewNew"); p.src = newImageBase64; p.style.display="block";
-        dArea.innerText = "写真を認識しました";
+        document.getElementById("previewNew").src = newImageBase64;
+        document.getElementById("previewNew").style.display="block";
       };
       img.src = ev.target.result;
     };
