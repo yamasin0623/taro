@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>丹波太郎野菜販売 - 修正完了版</title>
+<title>丹波太郎野菜販売 - 価格幅対応版</title>
 <style>
   body { font-family: sans-serif; margin: 0; padding: 0; background: #f4f7f6; color: #333; padding-bottom: 140px; }
   header { background: #27ae60; color: white; padding: 10px 10px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -51,7 +51,6 @@
 </div>
 
 <div class="footer-bar">
-  <div id="total" style="text-align:left; font-weight:bold; font-size:1.2rem;">合計：0円</div>
   <button id="orderBtn">注文を確定する</button>
 </div>
 
@@ -68,7 +67,8 @@
   <div class="admin-card">
     <h3>➕ 商品追加</h3>
     名前：<input type="text" id="newName"><br><br>
-    価格：<input type="number" id="newPrice" style="width:70px">円 / 在庫：<input type="number" id="newStock" style="width:70px">個<br><br>
+    価格：<input type="number" id="minPrice" placeholder="最低" style="width:70px"> ～ <input type="number" id="maxPrice" placeholder="最高" style="width:70px"> 円<br><br>
+    在庫：<input type="number" id="newStock" style="width:70px"> 個<br><br>
     生産者：<input type="text" id="newProducer" list="prodList"><br><br>
     栽培：<select id="newPesticide"><option value="">なし</option><option value="減農薬">減農薬</option><option value="無農薬">無農薬</option></select>
     <datalist id="prodList"></datalist><br><br>
@@ -125,7 +125,7 @@
   db.ref("orders").on("value", snap => {
     const data = snap.val();
     document.getElementById("realtimeOrderList").innerHTML = data ? Object.values(data).reverse().map(o => `
-      <div class="admin-card"><small>${o.time}</small><br><strong>${o.name} 様</strong><br>${o.items}<br>合計 ${o.total}円</div>
+      <div class="admin-card"><small>${o.time}</small><br><strong>${o.name} 様</strong><br>${o.items}</div>
     `).join("") : "履歴なし";
   });
 
@@ -134,7 +134,12 @@
     const homePageUrl = window.location.href.split('?')[0].split('#')[0];
     let msg = "🥬 本日の在庫状況\n\n";
     if (comment) msg += `【店主より】\n${comment}\n\n`;
-    vegetables.forEach(v => { if(v.stock > 0) msg += `・${v.name}：${v.price}円 (${v.stock}個)\n`; });
+    vegetables.forEach(v => { 
+      if(v.stock > 0) {
+        // LINE通知も幅のある価格に対応
+        msg += `・${v.name}：${v.minPrice}～${v.maxPrice}円 (${v.stock}個)\n`; 
+      }
+    });
     msg += `\n🛒 注文はこちら：\n${homePageUrl}\n宜しくお願いします！`;
     if(!confirm("LINEに送信しますか？")) return;
     fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ message: msg }) })
@@ -143,39 +148,75 @@
 
   document.getElementById("addBtn").onclick = () => {
     const name = document.getElementById("newName").value;
-    const price = Number(document.getElementById("newPrice").value);
+    const minPrice = Number(document.getElementById("minPrice").value);
+    const maxPrice = Number(document.getElementById("maxPrice").value);
     const stock = Number(document.getElementById("newStock").value);
     const producer = document.getElementById("newProducer").value;
     const pesticide = document.getElementById("newPesticide").value;
-    if (!name) return alert("名前を入力してください");
-    vegetables.push({ name, price, stock, producer, pesticide, image: newImageBase64 || "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQAQMAAAD2S9YFAAAAA1BMVEVaxf96S97VAAAAAXRSTlMAQObYZgAAABJJREFUeNpjYBgFo2AUjAIwAAADAAABmS699AAAAABJRU5ErkJggg==", date: new Date().toLocaleDateString("ja-JP") });
+    if (!name || !minPrice || !maxPrice) return alert("名前と価格（最低・最高）を入力してください");
+    
+    vegetables.push({ 
+      name, 
+      minPrice, 
+      maxPrice, 
+      stock, 
+      producer, 
+      pesticide, 
+      image: newImageBase64 || "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQAQMAAAD2S9YFAAAAA1BMVEVaxf96S97VAAAAAXRSTlMAQObYZgAAABJJREFUeNpjYBgFo2AUjAIwAAADAAABmS699AAAAABJRU5ErkJggg==", 
+      date: new Date().toLocaleDateString("ja-JP") 
+    });
+    
     db.ref("vegetables").set(vegetables).then(() => {
       alert("登録しました！");
-      document.getElementById("newName").value = ""; document.getElementById("newPrice").value = "";
-      document.getElementById("newStock").value = ""; document.getElementById("newProducer").value = "";
-      document.getElementById("newPesticide").value = ""; newImageBase64 = ""; document.getElementById("previewNew").style.display="none";
+      document.getElementById("newName").value = ""; 
+      document.getElementById("minPrice").value = "";
+      document.getElementById("maxPrice").value = "";
+      document.getElementById("newStock").value = ""; 
+      document.getElementById("newProducer").value = "";
+      document.getElementById("newPesticide").value = ""; 
+      newImageBase64 = ""; 
+      document.getElementById("previewNew").style.display="none";
     });
   };
 
   document.getElementById("orderBtn").onclick = () => {
     const u = document.getElementById("nameBox").value; if(!u) return alert("お名前を入力してください");
-    let items = [], total = 0;
-    vegetables.forEach((v, i) => { const q = currentQuantities[i] || 0; if(q > 0) { v.stock -= q; items.push(`${v.name}×${q}`); total += v.price * q; } });
+    let items = [];
+    vegetables.forEach((v, i) => { 
+      const q = currentQuantities[i] || 0; 
+      if(q > 0) { 
+        v.stock -= q; 
+        items.push(`${v.name}×${q}`); 
+      } 
+    });
     if(items.length === 0) return alert("商品が選ばれていません");
-    db.ref("orders").push({ name: u, items: items.join(", "), total, time: new Date().toLocaleString("ja-JP") });
+    
+    // 注文データから合計金額(total)を削除
+    db.ref("orders").push({ 
+      name: u, 
+      items: items.join(", "), 
+      time: new Date().toLocaleString("ja-JP") 
+    });
     db.ref("vegetables").set(vegetables);
-    alert("注文完了！"); document.getElementById("nameBox").value = ""; currentQuantities = {}; renderItems();
+    alert("注文完了！"); 
+    document.getElementById("nameBox").value = ""; 
+    currentQuantities = {}; 
+    renderItems();
   };
 
   function renderItems() {
     document.getElementById("items").innerHTML = vegetables.map((v, i) => {
       const q = currentQuantities[i] || 0;
-      return `<div class="item"><img src="${v.image}"><div class="info"><p class="veg-name">${v.name} <span class="pesticide-label">${v.pesticide || ''}</span></p><p class="price">${v.price}円</p><div>残り：${v.stock - q}個</div><div class="qty-control"><div class="btn-qty" onclick="changeQty(${i},-1)">－</div> ${q} <div class="btn-qty" onclick="changeQty(${i},1)">＋</div></div></div><div class="producer-tag">${v.producer || ''}</div></div>`
+      // 価格表示を「最低～最高円」に変更
+      return `<div class="item"><img src="${v.image}"><div class="info"><p class="veg-name">${v.name} <span class="pesticide-label">${v.pesticide || ''}</span></p><p class="price">${v.minPrice}～${v.maxPrice}円</p><div>残り：${v.stock - q}個</div><div class="qty-control"><div class="btn-qty" onclick="changeQty(${i},-1)">－</div> ${q} <div class="btn-qty" onclick="changeQty(${i},1)">＋</div></div></div><div class="producer-tag">${v.producer || ''}</div></div>`
     }).join("");
-    let s = 0; vegetables.forEach((v, i) => s += v.price * (currentQuantities[i] || 0));
-    document.getElementById("total").innerText = `合計：${s}円`;
+    // 合計金額の更新処理を削除しました
   }
-  function renderAdminItems() { document.getElementById("editList").innerHTML = vegetables.map((v, i) => `<div class="admin-card" style="display:flex; justify-content:space-between;"><span>${v.name} (${v.stock}個)</span><button onclick="deleteVeg(${i})" class="btn-delete">削除</button></div>`).join(""); }
+
+  function renderAdminItems() { 
+    document.getElementById("editList").innerHTML = vegetables.map((v, i) => `<div class="admin-card" style="display:flex; justify-content:space-between;"><span>${v.name} (${v.minPrice}～${v.maxPrice}円)</span><button onclick="deleteVeg(${i})" class="btn-delete">削除</button></div>`).join(""); 
+  }
+
   function updateProducerUI() {
     document.getElementById("prodList").innerHTML = producers.map(p => `<option value="${p}">`).join("");
     document.getElementById("producerListDisplay").innerHTML = producers.map((p, i) => `<div class="admin-card" style="display:flex; justify-content:space-between; align-items:center;"><span>${p}</span><button onclick="deleteProducer(${i})" class="btn-delete">削除</button></div>`).join("");
